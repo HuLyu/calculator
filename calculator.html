@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>德国税后工资计算器</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 2em auto;
+            padding: 1em;
+            line-height: 1.6;
+        }
+
+        label {
+            display: block;
+            margin: 0.5em 0;
+        }
+
+        input,
+        select {
+            width: 100%;
+            padding: 0.5em;
+            margin-top: 0.2em;
+        }
+
+        button {
+            margin-top: 1em;
+            padding: 0.7em 1.2em;
+            font-size: 1em;
+        }
+
+        .result {
+            margin-top: 1em;
+            padding: 1em;
+            background: #f0f0f0;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>德国税后工资计算器</h1>
+    <form id="salaryForm">
+        <label>
+            所在联邦州:
+            <select id="state">
+                <option value="BW">Baden-Württemberg</option>
+                <option value="BY">Bayern</option>
+                <option value="BE">Berlin</option>
+                <option value="BB">Brandenburg</option>
+                <option value="HB">Bremen</option>
+                <option value="HH">Hamburg</option>
+                <option value="HE">Hessen</option>
+                <option value="MV">Mecklenburg-Vorpommern</option>
+                <option value="NI">Niedersachsen</option>
+                <option value="NW">Nordrhein-Westfalen</option>
+                <option value="RP">Rheinland-Pfalz</option>
+                <option value="SL">Saarland</option>
+                <option value="SN">Sachsen</option>
+                <option value="ST">Sachsen-Anhalt</option>
+                <option value="SH">Schleswig-Holstein</option>
+                <option value="TH">Thüringen</option>
+            </select>
+        </label>
+        <label>
+            税率年份:
+            <select id="taxYear">
+                <option value="2021">2021</option>
+                <option value="2022">2022</option>
+                <option value="2023">2023</option>
+                <option value="2024">2024</option>
+                <option value="2025">2025</option>
+            </select>
+        </label>
+        <label>
+            年龄:
+            <input type="number" id="age" required min="0" />
+        </label>
+        <label>
+            是否有孩子:
+            <select id="hasChildren">
+                <option value="yes">是</option>
+                <option value="no">否</option>
+            </select>
+        </label>
+        <label>
+            月度税前工资 (€):
+            <input type="number" id="grossMonthly" required step="0.01" />
+        </label>
+        <label>
+            税级 (Steuerklasse):
+            <select id="taxClass">
+                <option value="1">I</option>
+                <option value="2">II</option>
+                <option value="3">III</option>
+                <option value="4">IV</option>
+                <option value="5">V</option>
+                <option value="6">VI</option>
+            </select>
+        </label>
+        <label>
+            是否加入教会:
+            <select id="churchMember">
+                <option value="yes">是</option>
+                <option value="no">否</option>
+            </select>
+        </label>
+        <button type="button" onclick="calculateNet()">计算</button>
+    </form>
+    <div id="output" class="result" style="display:none;"></div>
+
+    <script>
+        // 简化德国个人所得税计算，当前基于 2021 年税率，后续可根据 taxYear 调整公式
+        function calculateIncomeTax(annual) {
+            let tax = 0;
+            if (annual <= 9744) {
+                tax = 0;
+            } else if (annual <= 14753) {
+                tax = (annual - 9744) * 0.14;
+            } else if (annual <= 57918) {
+                tax = (annual - 14753) * 0.239 + 702;
+            } else if (annual <= 274612) {
+                tax = annual * 0.42 - 8963;
+            } else {
+                tax = annual * 0.45 - 17078;
+            }
+            return tax;
+        }
+
+        function calculateNet() {
+            const state = document.getElementById('state').value;
+            const taxYear = parseInt(document.getElementById('taxYear').value);
+            const age = parseInt(document.getElementById('age').value);
+            const hasChildren = document.getElementById('hasChildren').value;
+            const grossMonthly = parseFloat(document.getElementById('grossMonthly').value);
+            const taxClass = parseInt(document.getElementById('taxClass').value);
+            const churchMember = document.getElementById('churchMember').value;
+
+            // 年度税前
+            const annualGross = grossMonthly * 12;
+
+            // 社会保险（员工部分），含：医疗、养老、失业、护理
+            const healthRate = 0.073;
+            const pensionRate = 0.093;
+            const unemploymentRate = 0.012;
+            let nursingRate = 0.01525;
+            if (hasChildren === 'no' && age > 23) {
+                nursingRate = 0.01775;
+            }
+            const socialRate = healthRate + pensionRate + unemploymentRate + nursingRate;
+            const socialContribution = grossMonthly * socialRate;
+
+            // 所得税
+            const annualTax = calculateIncomeTax(annualGross);
+            const monthlyTax = annualTax / 12;
+
+            // 团结附加税（5.5%）
+            const solidarity = monthlyTax * 0.055;
+            // 教会税率根据联邦州和教会会员自动设定
+            let churchRate = 0;
+            if (churchMember === 'yes') {
+                churchRate = (state === 'BY' || state === 'BW') ? 0.08 : 0.09;
+            }
+            const churchTax = monthlyTax * churchRate;
+
+            const net = grossMonthly - socialContribution - monthlyTax - solidarity - churchTax;
+
+            const output = document.getElementById('output');
+            output.style.display = 'block';
+            output.innerHTML = `
+        <strong>月度税后工资 (€): ${net.toFixed(2)}</strong><br/>
+        社保扣除 (€): ${socialContribution.toFixed(2)}<br/>
+        所得税 (€): ${monthlyTax.toFixed(2)}<br/>
+        团结附加税 (€): ${solidarity.toFixed(2)}<br/>
+        教会税 (€): ${churchTax.toFixed(2)}<br/>
+        <em>计算基于 ${taxYear} 年税率模型</em>
+      `;
+        }
+    </script>
+</body>
+
+</html>
